@@ -82,3 +82,6 @@ The script creates an Excel file named `vmware_info_YYYYMMDD_HHMMSS.xlsx` in the
 ## Security Note
 
 This script disables SSL certificate verification for simplicity. In a production environment, you should properly configure SSL certificates for secure communication with vCenter. 
+
+
+This project is licensed under the Apache License 2.0 by Technology Pathfinders Consulting, LLC.
