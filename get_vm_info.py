@@ -632,10 +632,22 @@ def get_vnic_info(content):
                 if hasattr(host.config, 'network'):
                     for vnic in host.config.network.vnic:
                         # Get IP configuration
-                        ip_config = vnic.spec.ip
-                        ip_address = ip_config.ipAddress if hasattr(ip_config, 'ipAddress') else 'N/A'
-                        subnet_mask = ip_config.subnetMask if hasattr(ip_config, 'subnetMask') else 'N/A'
-                        gateway = ip_config.ipV6Config.gateway if hasattr(ip_config, 'ipV6Config') else 'N/A'
+                        ip_config = vnic.spec.ip if hasattr(vnic.spec, 'ip') else None
+                        ip_address = 'N/A'
+                        subnet_mask = 'N/A'
+                        
+                        if ip_config is not None:
+                            ip_address = ip_config.ipAddress if hasattr(ip_config, 'ipAddress') else 'N/A'
+                            subnet_mask = ip_config.subnetMask if hasattr(ip_config, 'subnetMask') else 'N/A'
+                        
+                        # Get gateway - handle both IPv4 and IPv6
+                        gateway = 'N/A'
+                        if ip_config is not None:
+                            if hasattr(ip_config, 'ipV6Config') and ip_config.ipV6Config is not None:
+                                if hasattr(ip_config.ipV6Config, 'gateway'):
+                                    gateway = ip_config.ipV6Config.gateway
+                            elif hasattr(ip_config, 'gateway'):
+                                gateway = ip_config.gateway
                         
                         # Get portgroup
                         portgroup = 'N/A'
@@ -644,14 +656,14 @@ def get_vnic_info(content):
                         
                         vnic_info = {
                             'Host': host.name,
-                            'Device': vnic.device,
+                            'Device': vnic.device if hasattr(vnic, 'device') else 'N/A',
                             'Portgroup': portgroup,
                             'IP Address': ip_address,
                             'Subnet Mask': subnet_mask,
                             'Gateway': gateway,
                             'MTU': vnic.spec.mtu if hasattr(vnic.spec, 'mtu') else 'N/A',
-                            'DHCP Enabled': ip_config.dhcp if hasattr(ip_config, 'dhcp') else 'N/A',
-                            'IPv6 Enabled': hasattr(ip_config, 'ipV6Config'),
+                            'DHCP Enabled': ip_config.dhcp if ip_config is not None and hasattr(ip_config, 'dhcp') else 'N/A',
+                            'IPv6 Enabled': ip_config is not None and hasattr(ip_config, 'ipV6Config') and ip_config.ipV6Config is not None,
                             'Connected': vnic.spec.connected if hasattr(vnic.spec, 'connected') else 'N/A'
                         }
                         
@@ -659,6 +671,19 @@ def get_vnic_info(content):
                 
             except Exception as e:
                 print(f"Error getting vNIC info for host {host.name}: {str(e)}")
+                # Add the host with error info to continue processing other hosts
+                vnic_data.append({
+                    'Host': host.name,
+                    'Device': 'Error',
+                    'Portgroup': 'N/A',
+                    'IP Address': 'N/A',
+                    'Subnet Mask': 'N/A',
+                    'Gateway': 'N/A',
+                    'MTU': 'N/A',
+                    'DHCP Enabled': 'N/A',
+                    'IPv6 Enabled': 'N/A',
+                    'Connected': 'N/A'
+                })
         
         container_view.Destroy()
         
