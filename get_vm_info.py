@@ -489,26 +489,46 @@ def get_vswitch_info(content):
                         
                         # Get physical NICs
                         pnics = []
-                        for pnic in vswitch.pnic:
-                            pnics.append(pnic.device)
+                        if hasattr(vswitch, 'pnic'):
+                            for pnic in vswitch.pnic:
+                                # Handle different types of pnic objects
+                                if hasattr(pnic, 'device'):
+                                    pnics.append(pnic.device)
+                                elif hasattr(pnic, 'key'):
+                                    pnics.append(pnic.key)
+                                else:
+                                    pnics.append(str(pnic))
                         
                         vswitch_info = {
                             'Host': host.name,
                             'Name': vswitch.name,
-                            'Num Ports': vswitch.numPorts,
-                            'Num Ports Available': vswitch.numPortsAvailable,
-                            'MTU': vswitch.mtu,
+                            'Num Ports': vswitch.numPorts if hasattr(vswitch, 'numPorts') else 'N/A',
+                            'Num Ports Available': vswitch.numPortsAvailable if hasattr(vswitch, 'numPortsAvailable') else 'N/A',
+                            'MTU': vswitch.mtu if hasattr(vswitch, 'mtu') else 'N/A',
                             'Port Groups': ', '.join(port_groups),
                             'Physical NICs': ', '.join(pnics),
-                            'Allow Promiscuous': vswitch.spec.policy.security.allowPromiscuous if hasattr(vswitch.spec.policy, 'security') else 'N/A',
-                            'Forged Transmits': vswitch.spec.policy.security.forgedTransmits if hasattr(vswitch.spec.policy, 'security') else 'N/A',
-                            'MAC Changes': vswitch.spec.policy.security.macChanges if hasattr(vswitch.spec.policy, 'security') else 'N/A'
+                            'Allow Promiscuous': vswitch.spec.policy.security.allowPromiscuous if hasattr(vswitch.spec, 'policy') and hasattr(vswitch.spec.policy, 'security') else 'N/A',
+                            'Forged Transmits': vswitch.spec.policy.security.forgedTransmits if hasattr(vswitch.spec, 'policy') and hasattr(vswitch.spec.policy, 'security') else 'N/A',
+                            'MAC Changes': vswitch.spec.policy.security.macChanges if hasattr(vswitch.spec, 'policy') and hasattr(vswitch.spec.policy, 'security') else 'N/A'
                         }
                         
                         vswitch_data.append(vswitch_info)
                 
             except Exception as e:
                 print(f"Error getting vSwitch info for host {host.name}: {str(e)}")
+                # Add the host with error info to continue processing other hosts
+                vswitch_data.append({
+                    'Host': host.name,
+                    'Name': 'Error',
+                    'Num Ports': 'N/A',
+                    'Num Ports Available': 'N/A',
+                    'MTU': 'N/A',
+                    'Port Groups': 'N/A',
+                    'Physical NICs': 'N/A',
+                    'Allow Promiscuous': 'N/A',
+                    'Forged Transmits': 'N/A',
+                    'MAC Changes': 'N/A'
+                })
         
         container_view.Destroy()
         
