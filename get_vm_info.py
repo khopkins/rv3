@@ -717,44 +717,73 @@ def get_vhba_info(content):
             try:
                 if hasattr(host.config, 'storageDevice'):
                     for hba in host.config.storageDevice.hostBusAdapter:
-                        # Get HBA type
-                        hba_type = 'Unknown'
-                        if isinstance(hba, vim.host.FibreChannelHba):
-                            hba_type = 'Fibre Channel'
-                        elif isinstance(hba, vim.host.InternetScsiHba):
-                            hba_type = 'iSCSI'
-                        elif isinstance(hba, vim.host.SasHba):
-                            hba_type = 'SAS'
-                        elif isinstance(hba, vim.host.ParaVirtualScsiHba):
-                            hba_type = 'ParaVirtual SCSI'
-                        
-                        # Get WWN/WWPN for FC HBAs
-                        wwn = 'N/A'
-                        if isinstance(hba, vim.host.FibreChannelHba):
-                            wwn = hba.portWorldWideName
-                        
-                        # Get iSCSI IQN
-                        iqn = 'N/A'
-                        if isinstance(hba, vim.host.InternetScsiHba):
-                            iqn = hba.iScsiName
-                        
-                        hba_info = {
-                            'Host': host.name,
-                            'Device': hba.device,
-                            'Type': hba_type,
-                            'Model': hba.model,
-                            'Driver': hba.driver,
-                            'Status': hba.status,
-                            'WWN/WWPN': wwn,
-                            'iSCSI IQN': iqn,
-                            'Bus': hba.bus,
-                            'PCI': f"{hba.pci:04x}:{hba.pciSlot:02x}"
-                        }
-                        
-                        hba_data.append(hba_info)
+                        try:
+                            # Get HBA type
+                            hba_type = 'Unknown'
+                            if isinstance(hba, vim.host.FibreChannelHba):
+                                hba_type = 'Fibre Channel'
+                            elif isinstance(hba, vim.host.InternetScsiHba):
+                                hba_type = 'iSCSI'
+                            elif isinstance(hba, vim.host.SasHba):
+                                hba_type = 'SAS'
+                            elif isinstance(hba, vim.host.ParaVirtualScsiHba):
+                                hba_type = 'ParaVirtual SCSI'
+                            
+                            # Get WWN/WWPN for FC HBAs
+                            wwn = 'N/A'
+                            if isinstance(hba, vim.host.FibreChannelHba):
+                                wwn = hba.portWorldWideName if hasattr(hba, 'portWorldWideName') else 'N/A'
+                            
+                            # Get iSCSI IQN
+                            iqn = 'N/A'
+                            if isinstance(hba, vim.host.InternetScsiHba):
+                                iqn = hba.iScsiName if hasattr(hba, 'iScsiName') else 'N/A'
+                            
+                            hba_info = {
+                                'Host': host.name,
+                                'Device': hba.device if hasattr(hba, 'device') else 'N/A',
+                                'Type': hba_type,
+                                'Model': hba.model if hasattr(hba, 'model') else 'N/A',
+                                'Driver': hba.driver if hasattr(hba, 'driver') else 'N/A',
+                                'Status': hba.status if hasattr(hba, 'status') else 'N/A',
+                                'WWN/WWPN': wwn,
+                                'iSCSI IQN': iqn,
+                                'Bus': hba.bus if hasattr(hba, 'bus') else 'N/A',
+                                'PCI': f"{hba.pci:04x}:{hba.pciSlot:02x}" if hasattr(hba, 'pci') and hasattr(hba, 'pciSlot') else 'N/A'
+                            }
+                            
+                            hba_data.append(hba_info)
+                        except Exception as e:
+                            print(f"Error processing HBA on host {host.name}: {str(e)}")
+                            # Add error entry for this specific HBA
+                            hba_data.append({
+                                'Host': host.name,
+                                'Device': 'Error',
+                                'Type': 'N/A',
+                                'Model': 'N/A',
+                                'Driver': 'N/A',
+                                'Status': 'N/A',
+                                'WWN/WWPN': 'N/A',
+                                'iSCSI IQN': 'N/A',
+                                'Bus': 'N/A',
+                                'PCI': 'N/A'
+                            })
                 
             except Exception as e:
                 print(f"Error getting HBA info for host {host.name}: {str(e)}")
+                # Add the host with error info to continue processing other hosts
+                hba_data.append({
+                    'Host': host.name,
+                    'Device': 'Error',
+                    'Type': 'N/A',
+                    'Model': 'N/A',
+                    'Driver': 'N/A',
+                    'Status': 'N/A',
+                    'WWN/WWPN': 'N/A',
+                    'iSCSI IQN': 'N/A',
+                    'Bus': 'N/A',
+                    'PCI': 'N/A'
+                })
         
         container_view.Destroy()
         
@@ -782,20 +811,39 @@ def get_vlicense_info(content):
         if license_manager:
             # Get all licenses
             for license in license_manager.licenses:
-                # Get license properties
-                properties = {
-                    'Name': license.name,
-                    'Total': license.total,
-                    'Used': license.used,
-                    'Available': license.total - license.used,
-                    'Cost Unit': license.costUnit,
-                    'Edition Key': license.editionKey,
-                    'Key': license.licenseKey,
-                    'Labels': ', '.join(license.labels) if hasattr(license, 'labels') else 'N/A',
-                    'Expiration': license.expirationDate.replace(tzinfo=None) if hasattr(license, 'expirationDate') and license.expirationDate else 'N/A'
-                }
-                
-                license_data.append(properties)
+                try:
+                    # Get license properties with null checks
+                    total = license.total if hasattr(license, 'total') and license.total is not None else 0
+                    used = license.used if hasattr(license, 'used') and license.used is not None else 0
+                    available = total - used if total is not None and used is not None else 'N/A'
+                    
+                    properties = {
+                        'Name': license.name if hasattr(license, 'name') else 'N/A',
+                        'Total': total,
+                        'Used': used,
+                        'Available': available,
+                        'Cost Unit': license.costUnit if hasattr(license, 'costUnit') else 'N/A',
+                        'Edition Key': license.editionKey if hasattr(license, 'editionKey') else 'N/A',
+                        'Key': license.licenseKey if hasattr(license, 'licenseKey') else 'N/A',
+                        'Labels': ', '.join(license.labels) if hasattr(license, 'labels') and license.labels else 'N/A',
+                        'Expiration': license.expirationDate.replace(tzinfo=None) if hasattr(license, 'expirationDate') and license.expirationDate else 'N/A'
+                    }
+                    
+                    license_data.append(properties)
+                except Exception as e:
+                    print(f"Error processing license: {str(e)}")
+                    # Add error entry for this license
+                    license_data.append({
+                        'Name': 'Error',
+                        'Total': 'N/A',
+                        'Used': 'N/A',
+                        'Available': 'N/A',
+                        'Cost Unit': 'N/A',
+                        'Edition Key': 'N/A',
+                        'Key': 'N/A',
+                        'Labels': 'N/A',
+                        'Expiration': 'N/A'
+                    })
         
     except Exception as e:
         print(f"Error collecting license information: {str(e)}")
@@ -873,28 +921,34 @@ def get_vhealth_info(content):
         
         for host in container_view.view:
             try:
-                # Get hardware health
-                hardware_health = host.hardware.systemInfo.healthState if hasattr(host.hardware, 'systemInfo') else 'N/A'
+                # Get hardware health - use overallStatus instead of healthState
+                hardware_health = 'N/A'
+                if hasattr(host.hardware, 'systemInfo'):
+                    hardware_health = host.overallStatus if hasattr(host, 'overallStatus') else 'N/A'
                 
                 # Get storage health
                 storage_health = 'N/A'
                 if hasattr(host, 'runtime') and hasattr(host.runtime, 'healthSystemRuntime'):
-                    storage_health = host.runtime.healthSystemRuntime.storageSystemHealthState
+                    if hasattr(host.runtime.healthSystemRuntime, 'storageSystemHealthState'):
+                        storage_health = host.runtime.healthSystemRuntime.storageSystemHealthState
                 
                 # Get memory health
                 memory_health = 'N/A'
                 if hasattr(host, 'runtime') and hasattr(host.runtime, 'healthSystemRuntime'):
-                    memory_health = host.runtime.healthSystemRuntime.memoryHealthState
+                    if hasattr(host.runtime.healthSystemRuntime, 'memoryHealthState'):
+                        memory_health = host.runtime.healthSystemRuntime.memoryHealthState
                 
                 # Get CPU health
                 cpu_health = 'N/A'
                 if hasattr(host, 'runtime') and hasattr(host.runtime, 'healthSystemRuntime'):
-                    cpu_health = host.runtime.healthSystemRuntime.cpuHealthState
+                    if hasattr(host.runtime.healthSystemRuntime, 'cpuHealthState'):
+                        cpu_health = host.runtime.healthSystemRuntime.cpuHealthState
                 
                 # Get network health
                 network_health = 'N/A'
                 if hasattr(host, 'runtime') and hasattr(host.runtime, 'healthSystemRuntime'):
-                    network_health = host.runtime.healthSystemRuntime.networkHealthState
+                    if hasattr(host.runtime.healthSystemRuntime, 'networkHealthState'):
+                        network_health = host.runtime.healthSystemRuntime.networkHealthState
                 
                 health_info = {
                     'Host': host.name,
@@ -910,6 +964,16 @@ def get_vhealth_info(content):
                 
             except Exception as e:
                 print(f"Error getting health info for host {host.name}: {str(e)}")
+                # Add the host with error info to continue processing other hosts
+                health_data.append({
+                    'Host': host.name,
+                    'Hardware Health': 'Error',
+                    'Storage Health': 'N/A',
+                    'Memory Health': 'N/A',
+                    'CPU Health': 'N/A',
+                    'Network Health': 'N/A',
+                    'Overall Health': 'N/A'
+                })
         
         container_view.Destroy()
         
